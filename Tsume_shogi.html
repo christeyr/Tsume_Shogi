@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>将棋終盤練習 - 3手詰練習</title>
+    <style>
+        body {
+            font-family: 'MS Gothic', monospace;
+            margin: 20px;
+            background-color: #f5f5dc;
+        }
+        
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 80vh;
+            gap: 30px;
+            padding: 20px;
+        }
+        
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .board-area {
+            display: flex;
+            align-items: flex-start; /* 垂直方向上揃え */
+            justify-content: center; /* 水平方向中央揃え */
+            gap: 20px; /* 各要素間のスペース */
+        }
+        
+        .captured-pieces {
+            width: 200px;
+            /* height: 100%; */ /* 必要に応じて高さを調整 */
+            border: 2px solid #8B4513;
+            background-color: #F4E4BC;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .captured-pieces.sente-captured {
+            align-self: flex-end; /* 先手の持ち駒を下揃え */
+            margin-left: 20px; /* 先手の持ち駒を右にずらして数字との重なりを防ぐ */
+        }
+
+        .captured-title {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #654321;
+        }
+        
+        .captured-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            min-height: 40px;
+            justify-content: center;
+        }
+        
+        .captured-piece {
+            background-color: #DEB887;
+            border: 1px solid #8B4513;
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 3px;
+        }
+        
+        .captured-piece:hover {
+            background-color: #D2B48C;
+        }
+        
+        .captured-piece.selected {
+            background-color: #98FB98;
+            box-shadow: 0 0 0 2px #228B22;
+        }
+        
+        .captured-piece.sente {
+            color: #000080;
+        }
+        
+        .captured-piece.gote {
+            color: #B22222;
+        }
+        
+        .promotion-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 3px solid #8B4513;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            text-align: center;
+        }
+        
+        .promotion-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+        
+        .promotion-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 2px solid #8B4513;
+            background: #F4E4BC;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        .promotion-button:hover {
+            background: #DEB887;
+        }
+        
+        .promotion-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        .board-container {
+            position: relative;
+            display: inline-block;
+            border: 3px solid #8B4513;
+            background-color: #DEB887;
+            padding: 10px;
+        }
+        
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            grid-template-rows: repeat(9, 50px);
+            gap: 1px;
+            background-color: #8B4513;
+            border: 2px solid #654321;
+        }
+        
+        .square {
+            width: 50px;
+            height: 50px;
+            background-color: #F4E4BC;
+            border: 1px solid #8B4513;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            position: relative;
+        }
+        
+        .piece {
+            font-size: 30px; /* この値を大きくするとフォントが大きくなります */
+            font-weight: bold;
+            color: #000;
+            user-select: none;
+        }
+        
+        .piece.sente {
+            color: #000080;
+        }
+        
+        .piece.gote {
+            color: #B22222;
+            transform: rotate(180deg);
+        }
+        
+        .square:hover {
+            background-color: #FFE4B5;
+        }
+        
+        .square.selected {
+            background-color: #98FB98;
+            box-shadow: inset 0 0 0 2px #228B22;
+        }
+        
+        .square.movable {
+            background-color: #FFFF99;
+            box-shadow: inset 0 0 0 1px #DAA520;
+        }
+        
+        .square.last-move {
+            background-color: #FFB6C1;
+        }
+        
+        /* 段・筋の表示 */
+        .row-numbers, .col-numbers {
+            position: absolute;
+            color: #654321;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .row-numbers {
+            right: -25px; /* 盤の右端からの距離を調整（ズレを修正） */
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            height: 459px;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        .col-numbers {
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            width: 459px;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        .status {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 16px;
+            color: #654321;
+        }
+        
+        .problem-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: flex-start; /* ラベルの開始位置を揃えるため */
+        }
+        
+        .problem-selector button {
+            padding: 2px 6px; /* ボタンの高さを他のボタンと合わせるために調整 */
+            font-size: 14px;
+            background-color: #f0f0f0; /* 明るいグレーの背景 */
+            border: 1px solid #000000;    /* 枠を黒くする */
+            cursor: pointer;
+            border-radius: 2px;       /* 他のボタンと合わせた角丸 (調整可) */
+        }
+        
+        .problem-selector button:hover {
+            background-color: #dcdcdc; /* ホバー時の背景色 (調整可) */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="game-area">
+            <div class="board-area">
+                <!-- 後手の持ち駒（左上） -->
+                <div class="captured-pieces gote-captured">
+                    <div class="captured-title">後手の持ち駒</div>
+                    <div class="captured-list" id="gote-captured"></div>
+                </div>
+                
+                <div class="board-container">
+                    <!-- 筋の数字（9-1） -->
+                    <div class="col-numbers">
+                        <span>９</span>
+                        <span>８</span>
+                        <span>７</span>
+                        <span>６</span>
+                        <span>５</span>
+                        <span>４</span>
+                        <span>３</span>
+                        <span>２</span>
+                        <span>１</span>
+                    </div>
+                    
+                    <!-- 段の数字（一-九） -->
+                    <div class="row-numbers">
+                        <span>一</span>
+                        <span>二</span>
+                        <span>三</span>
+                        <span>四</span>
+                        <span>五</span>
+                        <span>六</span>
+                        <span>七</span>
+                        <span>八</span>
+                        <span>九</span>
+                    </div>
+                    
+                    <!-- 将棋盤 -->
+                    <div class="board" id="shogi-board">
+                        <!-- JavaScript で生成 -->
+                    </div>
+                </div>
+                
+                <!-- 先手の持ち駒（右下） -->
+                <div class="captured-pieces sente-captured">
+                    <div class="captured-title">先手の持ち駒</div>
+                    <div class="captured-list" id="sente-captured"></div>
+                </div>
+            </div>
+            
+            <div class="status" id="status">
+                クリックして駒を選択し、移動先をクリックしてください
+            </div>
+            
+            <div style="margin-top: 15px; text-align: center;">
+                <div style="margin-bottom: 10px;">
+                    <label>
+                        <input type="checkbox" id="engine-mode" onchange="toggleEngineMode()">
+                        エンジン対戦モード（後手をコンピューターが指す）
+                    </label>
+                </div>
+                <div id="engine-status" style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                    対人戦モード
+                </div>
+                <button onclick="makeEngineMove()" id="engine-move-btn" style="display:none;">
+                    エンジンに手を指させる
+                </button>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 5px; justify-content: center;">
+                    <label for="sfen-input" style="white-space: nowrap;">SFEN局面:</label>
+                    <input type="text" id="sfen-input" style="flex-grow: 1; max-width: 400px;"
+                           placeholder="SFEN文字列を入力してください">
+                    <button onclick="loadSFEN()">局面読み込み</button>
+                    <button onclick="resetToInitial()">初期配置に戻す</button>
+                </div>
+                
+                <!-- 問題選択UIのグループ化 -->
+                <div class="problem-selection-group" style="display: inline-block; text-align: left;">
+                    <div class="problem-selector">
+                        <label>3手詰問題:</label>
+                        <select id="sample-problems" onchange="loadSampleProblem()">
+                            <option value="">-- 問題を選択 --</option>
+                            <option value="ln1gkg1nl/6+P2/2sppps1p/2p3p2/p8/P1P1P3P/2NP1PP2/3s1KSR1/L1+b2G1NL w R2Pbgp 42">第1問</option>
+                            <option value="l3kgsnl/9/p1pS+Bp3/7pp/6PP1/9/PPPPPPn1P/1B1GG2+r1/LNS1K3L w RG3Psnp 54">第2問</option>
+                            <option value="l3k2nl/4g1gb1/1+S1pspp+P1/p1p6/3n4p/2PPR1P2/P2bPP2P/5GS2/LN1K4L w R2Pgsn2p 50">第3問</option>
+                            <option value="lns+R4l/1p1p5/p1pkppB1p/6p2/1R7/6P1P/P1PPnPS2/2+b1G1g2/L3K1sNL b 2GS3Pnp 51">第4問</option>
+                            <option value="1+P1gkg2l/2s3s+P1/3ppp2p/P1p2npp1/l2N1+b3/3KP1P2/N2P1PS1P/2+p1G2R1/L1+r3sNL w Pbgp 58">第5問</option>
+                            <option value="lnsG5/4g4/prpp1p1pp/1p4p2/4+B3k/2P1P4/P+b1PSP1LP/4K2SL/2G2G1r1 b SP3nl3p 71">第6問</option>
+                            <option value="l5+R1l/4kS3/p4pnpp/2Pppb3/6p1P/P2s5/NP2+nPPR1/2+bS2GK1/L6NL b 3GSP4p 93">第7問</option>
+                            <option value="lR5nl/5k1b1/2gp3p1/2s1p1P2/p4N2p/P3PpR2/1PPP1P2P/2G1K2s1/LN6L b GSN2Pbgs2p 83">第8問</option>
+                            <option value="l1+R5l/2pS5/p2pp+P1pp/2k3p2/2N4P1/PP2R1P1P/2+pPP1N2/2GSG1bs1/LN1K4L b 2GSNPbp 73">第9問</option>
+                            <option value="lnsg4l/1r1b5/p1pp1+N1+R1/4p3p/9/P3SSk2/NpPPPPg1P/2GK5/L1S4NL b 2Pbg4p 91">第10問</option>
+                        </select>
+                        <button onclick="nextProblem()">次の問題</button>
+                    </div>
+
+                    <div style="margin-top: 15px; display: flex; align-items: center; gap: 5px; justify-content: flex-start;">
+                        <label for="problem-file-length" style="white-space: nowrap;">詰将棋ファイル:</label>
+                        <select id="problem-file-length">
+                            <option value="3">3手詰め</option>
+                            <option value="5">5手詰め</option>
+                            <option value="7">7手詰め</option>
+                            <option value="9">9手詰め</option>
+                            <option value="11">11手詰め</option>
+                        </select>
+                        <button onclick="loadProblemFromFile()">問題読み込み</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 駒の定義
+        const PIECES = {
+            // 先手の駒
+            'K': '玉', 'R': '飛', 'B': '角', 'G': '金', 'S': '銀', 
+            'N': '桂', 'L': '香', 'P': '歩',
+            // 成り駒
+            '+R': '龍', '+B': '馬', '+S': '全', '+N': '圭', '+L': '杏', '+P': 'と',
+            // 後手の駒
+            'k': '玉', 'r': '飛', 'b': '角', 'g': '金', 's': '銀', 
+            'n': '桂', 'l': '香', 'p': '歩',
+            // 後手の成り駒
+            '+r': '龍', '+b': '馬', '+s': '全', '+n': '圭', '+l': '杏', '+p': 'と'
+        };
+        
+        // SFEN関連の駒マッピング
+        const SFEN_TO_PIECE = {
+            'K': 'K', 'R': 'R', 'B': 'B', 'G': 'G', 'S': 'S', 'N': 'N', 'L': 'L', 'P': 'P',
+            'k': 'k', 'r': 'r', 'b': 'b', 'g': 'g', 's': 's', 'n': 'n', 'l': 'l', 'p': 'p'
+        };
+        
+        // SFEN文字列から盤面を解析
+        function parseSFEN(sfen) {
+            const parts = sfen.split(' ');
+            const boardPart = parts[0];
+            const turn = parts[1]; // 'b' = 先手(black), 'w' = 後手(white)
+            const capturedPart = parts[2] || '-'; // 持ち駒部分
+            
+            // 新しい盤面配列を初期化
+            const newBoard = Array(9).fill(null).map(() => Array(9).fill(null));
+            
+            const rows = boardPart.split('/');
+            for (let row = 0; row < 9; row++) {
+                let col = 0;
+                let i = 0;
+                while (i < rows[row].length) {
+                    const char = rows[row][i];
+                    
+                    if (char >= '1' && char <= '9') {
+                        // 数字は空マスの数を表す
+                        col += parseInt(char);
+                        i++;
+                    } else if (char === '+') {
+                        // 成り駒の場合
+                        i++; // '+'をスキップ
+                        const nextChar = rows[row][i];
+                        if (SFEN_TO_PIECE[nextChar]) {
+                            newBoard[row][col] = '+' + SFEN_TO_PIECE[nextChar];
+                            col++;
+                        }
+                        i++;
+                    } else if (SFEN_TO_PIECE[char]) {
+                        // 通常の駒を配置
+                        newBoard[row][col] = SFEN_TO_PIECE[char];
+                        col++;
+                        i++;
+                    } else {
+                        i++;
+                    }
+                }
+            }
+            
+            // 持ち駒の解析
+            const newCapturedPieces = { sente: {}, gote: {} };
+            if (capturedPart !== '-') {
+                parseCapturedPieces(capturedPart, newCapturedPieces);
+            }
+            
+            // 手番を設定
+            currentPlayer = turn === 'b' ? 'sente' : 'gote';
+            
+            return { board: newBoard, capturedPieces: newCapturedPieces };
+        }
+        
+        // 持ち駒部分の解析
+        function parseCapturedPieces(capturedPart, capturedPieces) {
+            let i = 0;
+            while (i < capturedPart.length) {
+                let count = 1;
+                let piece = '';
+                
+                // 数字があるかチェック
+                if (capturedPart[i] >= '1' && capturedPart[i] <= '9') {
+                    count = parseInt(capturedPart[i]);
+                    i++;
+                    // 2桁の数字もチェック
+                    while (i < capturedPart.length && capturedPart[i] >= '0' && capturedPart[i] <= '9') {
+                        count = count * 10 + parseInt(capturedPart[i]);
+                        i++;
+                    }
+                }
+                
+                // 駒の種類を取得
+                if (i < capturedPart.length) {
+                    const char = capturedPart[i];
+                    if (SFEN_TO_PIECE[char]) {
+                        piece = SFEN_TO_PIECE[char];
+                        const player = char === char.toUpperCase() ? 'sente' : 'gote';
+                        const pieceType = piece.toLowerCase();
+                        
+                        if (!capturedPieces[player][pieceType]) {
+                            capturedPieces[player][pieceType] = 0;
+                        }
+                        capturedPieces[player][pieceType] += count;
+                    }
+                    i++;
+                }
+            }
+        }
+        
+        // 初期配置のSFEN
+        const INITIAL_SFEN = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
+        
+        // 盤面の状態管理（9x9の配列）
+        let boardState = [];
+        
+        // ゲーム状態
+        let selectedSquare = null;
+        let selectedCapturedPiece = null; // 選択中の持ち駒
+        let currentPlayer = 'sente'; // 'sente' or 'gote'
+        let moveHistory = [];
+        let engineMode = false; // エンジン対戦モード
+        let isEngineThinking = false; // エンジン思考中フラグ
+        
+        // 持ち駒の管理
+        let capturedPieces = {
+            sente: {},
+            gote: {}
+        };
+        
+        // 成れる駒かどうか判定
+        function canPromote(piece) {
+            const baseType = piece.replace('+', '').toLowerCase();
+            return ['p', 'l', 'n', 's', 'b', 'r'].includes(baseType);
+        }
+        
+        // 成り駒かどうか判定
+        function isPromoted(piece) {
+            return piece.startsWith('+');
+        }
+        
+        // 駒を成らせる
+        function promotePiece(piece) {
+            if (piece.startsWith('+')) return piece; // 既に成り駒
+            return '+' + piece;
+        }
+        
+        // 成りの判定（敵陣に関する判定）
+        function isInEnemyTerritory(row, isGote) {
+            if (isGote) {
+                return row >= 6; // 後手：7,8,9段目（row 6,7,8）
+            } else {
+                return row <= 2; // 先手：1,2,3段目（row 0,1,2）
+            }
+        }
+        
+        // 成れる条件かどうか判定
+        function canPromoteMove(piece, fromRow, toRow) {
+            const isGote = piece === piece.toLowerCase() || (piece.startsWith('+') && piece.charAt(1) === piece.charAt(1).toLowerCase());
+            
+            // 成れる駒でない場合
+            if (!canPromote(piece)) return false;
+            
+            // 既に成り駒の場合
+            if (isPromoted(piece)) return false;
+            
+            // 敵陣進入・敵陣内移動・敵陣から出る場合
+            return isInEnemyTerritory(fromRow, isGote) || isInEnemyTerritory(toRow, isGote);
+        }
+        
+        // SFEN読み込み
+        function loadSFEN() {
+            const sfenInput = document.getElementById('sfen-input');
+            const sfenString = sfenInput.value.trim();
+            
+            if (!sfenString) {
+                updateStatus('SFEN文字列を入力してください');
+                return;
+            }
+            
+            try {
+                const result = parseSFEN(sfenString);
+                boardState = result.board;
+                capturedPieces = result.capturedPieces;
+                
+                // 前回の着手表示をリセット
+                document.querySelectorAll('.square.last-move').forEach(sq => {
+                    sq.classList.remove('last-move');
+                });
+                
+                clearSelection();
+                updateBoardDisplay();
+                updateCapturedDisplay();
+                moveHistory = [];
+                updateStatus(`局面を読み込みました - ${currentPlayer === 'sente' ? '先手' : '後手'}の番です`);
+                
+            } catch (error) {
+                updateStatus('SFEN文字列の解析に失敗しました');
+            }
+        }
+        
+        // 初期配置に戻す
+        function resetToInitial() {
+            // 前回の着手表示をリセット
+            document.querySelectorAll('.square.last-move').forEach(sq => {
+                sq.classList.remove('last-move');
+            });
+            
+            document.getElementById('sfen-input').value = INITIAL_SFEN;
+            loadSFEN();
+        }
+        
+        // サンプル問題読み込み
+        function loadSampleProblem() {
+            const select = document.getElementById('sample-problems');
+            const sfen = select.value;
+            
+            if (sfen) {
+                document.getElementById('sfen-input').value = sfen;
+                loadSFEN();
+                const problemName = select.options[select.selectedIndex].text;
+                updateStatus(`${problemName}を読み込みました`);
+            }
+        }
+        
+        // 次の問題
+        function nextProblem() {
+            const select = document.getElementById('sample-problems');
+            const currentIndex = select.selectedIndex;
+            const maxIndex = select.options.length - 1;
+            
+            if (currentIndex < maxIndex) {
+                select.selectedIndex = currentIndex + 1;
+                loadSampleProblem();
+            } else {
+                // 最後の問題の場合は最初の問題に戻る
+                select.selectedIndex = 1; // 0は「問題を選択」なので1から
+                loadSampleProblem();
+                updateStatus('全問題完了！第1問に戻りました');
+            }
+        }
+        
+        // ファイルから詰将棋問題を読み込む
+        async function loadProblemFromFile() {
+            const lengthSelect = document.getElementById('problem-file-length');
+            const problemLength = lengthSelect.value;
+            const fileName = `mate${problemLength}_001.sfen`;
+
+            updateStatus(`ファイル ${fileName} から問題を読み込み中...`);
+
+            try {
+                const response = await fetch(fileName);
+                if (!response.ok) {
+                    throw new Error(`ファイル ${fileName} が見つかりません (${response.status})`);
+                }
+                const text = await response.text();
+                const sfens = text.trim().split('\n').filter(sfen => sfen.trim() !== ''); // 空行を除外
+
+                if (sfens.length === 0) {
+                    updateStatus(`ファイル ${fileName} に有効なSFENがありません。`);
+                    return;
+                }
+
+                const randomSfen = sfens[Math.floor(Math.random() * sfens.length)];
+                document.getElementById('sfen-input').value = randomSfen;
+                loadSFEN(); // 既存のSFEN読み込み関数を呼び出す
+                updateStatus(`${problemLength}手詰問題をファイル ${fileName} から読み込みました。`);
+            } catch (error) {
+                console.error('ファイル読み込みエラー:', error);
+                updateStatus(`エラー: ${error.message}`);
+            }
+        }
+
+        // 将棋盤の初期化
+        function initializeBoard() {
+            const board = document.getElementById('shogi-board');
+            
+            // 81マスを生成（9×9）
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const square = document.createElement('div');
+                    square.className = 'square';
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    square.dataset.position = `${9-col}${row+1}`;
+                    
+                    // クリックイベントを追加
+                    square.addEventListener('click', function() {
+                        handleSquareClick(this);
+                    });
+                    
+                    board.appendChild(square);
+                }
+            }
+            
+            // 初期配置をSFENから読み込み
+            const result = parseSFEN(INITIAL_SFEN);
+            boardState = result.board;
+            capturedPieces = result.capturedPieces;
+            updateBoardDisplay();
+            updateCapturedDisplay();
+            updateStatus(`先手の番です - 駒を選択してください`);
+        }
+        
+        // 盤面表示の更新
+        function updateBoardDisplay() {
+            const squares = document.querySelectorAll('.square');
+            
+            squares.forEach(square => {
+                const row = parseInt(square.dataset.row);
+                const col = parseInt(square.dataset.col);
+                const piece = boardState[row][col];
+                
+                // 既存の駒を削除
+                const existingPiece = square.querySelector('.piece');
+                if (existingPiece) {
+                    existingPiece.remove();
+                }
+                
+                // 駒がある場合は表示
+                if (piece) {
+                    const pieceElement = document.createElement('div');
+                    pieceElement.className = 'piece';
+                    pieceElement.textContent = PIECES[piece];
+                    
+                    // 先手・後手の区別
+                    if (piece === piece.toUpperCase()) {
+                        pieceElement.classList.add('sente');
+                    } else {
+                        pieceElement.classList.add('gote');
+                    }
+                    
+                    square.appendChild(pieceElement);
+                }
+            });
+        }
+        
+        // マスクリック処理
+        function handleSquareClick(square) {
+            // エンジン思考中は操作を無効化
+            if (isEngineThinking) {
+                updateStatus('エンジン思考中です...');
+                return;
+            }
+            
+            // エンジンモードで後手の番の場合は操作を無効化
+            if (engineMode && currentPlayer === 'gote') {
+                updateStatus('エンジンの番です');
+                return;
+            }
+            
+            const row = parseInt(square.dataset.row);
+            const col = parseInt(square.dataset.col);
+            const piece = boardState[row][col];
+            
+            // 持ち駒が選択されている場合
+            if (selectedCapturedPiece) {
+                if (!piece) { // 空のマスの場合
+                    executeCaptureDrop(row, col);
+                } else {
+                    updateStatus('駒がないマスを選択してください');
+                }
+                return;
+            }
+            
+            // 駒が選択されていない場合
+            if (!selectedSquare) {
+                if (piece && isPieceOwner(piece, currentPlayer)) {
+                    selectSquare(square, row, col);
+                } else {
+                    updateStatus('自分の駒を選択してください');
+                }
+            } 
+            // 駒が選択されている場合
+            else {
+                const selectedRow = parseInt(selectedSquare.dataset.row);
+                const selectedCol = parseInt(selectedSquare.dataset.col);
+                
+                // 同じマスをクリックした場合は選択解除
+                if (selectedRow === row && selectedCol === col) {
+                    clearSelection();
+                    updateStatus('選択を解除しました');
+                } 
+                // 自分の駒をクリックした場合は選択変更
+                else if (piece && isPieceOwner(piece, currentPlayer)) {
+                    selectSquare(square, row, col);
+                }
+                // 移動を実行
+                else {
+                    if (isValidMove(selectedRow, selectedCol, row, col)) {
+                        const piece = boardState[selectedRow][selectedCol];
+                        
+                        // 成りの判定
+                        if (canPromoteMove(piece, selectedRow, row)) {
+                            showPromotionDialog(selectedRow, selectedCol, row, col);
+                        } else {
+                            executeMove(selectedRow, selectedCol, row, col);
+                            
+                            // エンジンモードで先手が指した後、後手（エンジン）の番になったら自動で手を指す
+                            if (engineMode && currentPlayer === 'gote') {
+                                setTimeout(() => {
+                                    makeEngineMove();
+                                }, 1000); // 1秒後にエンジンが指す
+                            }
+                        }
+                    } else {
+                        updateStatus('その移動はできません');
+                    }
+                }
+            }
+        }
+        
+        // 駒の所有者判定
+        function isPieceOwner(piece, player) {
+            if (player === 'sente') {
+                return piece === piece.toUpperCase();
+            } else {
+                return piece === piece.toLowerCase();
+            }
+        }
+        
+        // マス選択
+        function selectSquare(square, row, col) {
+            clearSelection();
+            selectedSquare = square;
+            square.classList.add('selected');
+            
+            const piece = boardState[row][col];
+            const pieceType = currentPlayer === 'sente' ? '先手' : '後手';
+            updateStatus(`${pieceType}の${PIECES[piece]}を選択 - 移動先をクリックしてください`);
+            
+            // 移動可能マスをハイライト（現在は全ての空マスと相手駒）
+            highlightMovableSquares(row, col);
+        }
+        
+        // 選択解除
+        function clearSelection() {
+            if (selectedSquare) {
+                selectedSquare.classList.remove('selected');
+                selectedSquare = null;
+            }
+            if (selectedCapturedPiece) {
+                selectedCapturedPiece.classList.remove('selected');
+                selectedCapturedPiece = null;
+            }
+            // 移動可能マスのハイライトを削除
+            document.querySelectorAll('.square.movable').forEach(sq => {
+                sq.classList.remove('movable');
+            });
+        }
+        
+        // 移動可能マスのハイライト（ルールベース）
+        function highlightMovableSquares(fromRow, fromCol) {
+            const piece = boardState[fromRow][fromCol];
+            if (!piece) return;
+            
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => {
+                const row = parseInt(square.dataset.row);
+                const col = parseInt(square.dataset.col);
+                
+                if (isValidMove(fromRow, fromCol, row, col)) {
+                    square.classList.add('movable');
+                }
+            });
+        }
+        
+        // 移動ルールの判定
+        function isValidMove(fromRow, fromCol, toRow, toCol) {
+            const piece = boardState[fromRow][fromCol];
+            const targetPiece = boardState[toRow][toCol];
+            
+            // 基本チェック
+            if (!piece) return false;
+            if (fromRow === toRow && fromCol === toCol) return false;
+            if (targetPiece && isPieceOwner(targetPiece, currentPlayer)) return false;
+            
+            const pieceType = piece.toLowerCase();
+            const isGote = piece === piece.toLowerCase() || piece.startsWith('+') && piece.charAt(1) === piece.charAt(1).toLowerCase();
+            
+            return isValidMoveForPiece(piece.toLowerCase(), fromRow, fromCol, toRow, toCol, isGote);
+        }
+        
+        // 駒種別の移動ルール
+        function isValidMoveForPiece(pieceType, fromRow, fromCol, toRow, toCol, isGote) {
+            const deltaRow = toRow - fromRow;
+            const deltaCol = toCol - fromCol;
+            const absRow = Math.abs(deltaRow);
+            const absCol = Math.abs(deltaCol);
+            
+            // 先手は下向き（row増加）、後手は上向き（row減少）
+            const direction = isGote ? 1 : -1;
+            const forwardRow = deltaRow * direction;
+            
+            // 成り駒の処理
+            const basePiece = pieceType.replace('+', '');
+            const isPromotedPiece = pieceType.startsWith('+');
+            
+            switch (basePiece) {
+                case 'k': // 玉
+                    return absRow <= 1 && absCol <= 1;
+                    
+                case 'r': // 飛車
+                    if (isPromotedPiece) { // 龍
+                        // 飛車の動き + 斜め1マス
+                        return (deltaRow === 0 || deltaCol === 0) && isPathClear(fromRow, fromCol, toRow, toCol) ||
+                               (absRow === 1 && absCol === 1);
+                    } else {
+                        return (deltaRow === 0 || deltaCol === 0) && isPathClear(fromRow, fromCol, toRow, toCol);
+                    }
+                    
+                case 'b': // 角
+                    if (isPromotedPiece) { // 馬
+                        // 角の動き + 縦横1マス
+                        return (absRow === absCol) && isPathClear(fromRow, fromCol, toRow, toCol) ||
+                               ((absRow === 1 && deltaCol === 0) || (deltaRow === 0 && absCol === 1));
+                    } else {
+                        return (absRow === absCol) && isPathClear(fromRow, fromCol, toRow, toCol);
+                    }
+                    
+                case 'g': // 金
+                    return (absRow <= 1 && absCol <= 1) && 
+                           !(forwardRow === -1 && absCol === 1);
+                           
+                case 's': // 銀
+                    if (isPromotedPiece) { // 成銀（金と同じ動き）
+                        return (absRow <= 1 && absCol <= 1) && 
+                               !(forwardRow === -1 && absCol === 1);
+                    } else {
+                        return (absRow <= 1 && absCol <= 1) && 
+                               !(forwardRow === 0 && absCol === 1) &&
+                               !(forwardRow === -1 && deltaCol === 0);
+                    }
+                    
+                case 'n': // 桂馬
+                    if (isPromotedPiece) { // 成桂（金と同じ動き）
+                        return (absRow <= 1 && absCol <= 1) && 
+                               !(forwardRow === -1 && absCol === 1);
+                    } else {
+                        return forwardRow === 2 && absCol === 1;
+                    }
+                    
+                case 'l': // 香車
+                    if (isPromotedPiece) { // 成香（金と同じ動き）
+                        return (absRow <= 1 && absCol <= 1) && 
+                               !(forwardRow === -1 && absCol === 1);
+                    } else {
+                        return deltaCol === 0 && forwardRow > 0 && isPathClear(fromRow, fromCol, toRow, toCol);
+                    }
+                    
+                case 'p': // 歩
+                    if (isPromotedPiece) { // と金（金と同じ動き）
+                        return (absRow <= 1 && absCol <= 1) && 
+                               !(forwardRow === -1 && absCol === 1);
+                    } else {
+                        return deltaCol === 0 && forwardRow === 1;
+                    }
+                    
+                default:
+                    return false;
+            }
+        }
+        
+        // 移動経路に障害物がないかチェック
+        function isPathClear(fromRow, fromCol, toRow, toCol) {
+            const deltaRow = toRow - fromRow;
+            const deltaCol = toCol - fromCol;
+            const steps = Math.max(Math.abs(deltaRow), Math.abs(deltaCol));
+            
+            if (steps <= 1) return true;
+            
+            const stepRow = deltaRow === 0 ? 0 : deltaRow / Math.abs(deltaRow);
+            const stepCol = deltaCol === 0 ? 0 : deltaCol / Math.abs(deltaCol);
+            
+            for (let i = 1; i < steps; i++) {
+                const checkRow = fromRow + stepRow * i;
+                const checkCol = fromCol + stepCol * i;
+                
+                if (boardState[checkRow][checkCol] !== null) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // 移動実行
+        function executeMove(fromRow, fromCol, toRow, toCol, promote = false) {
+            const piece = boardState[fromRow][fromCol];
+            const capturedPiece = boardState[toRow][toCol];
+            
+            // 成りの処理
+            let finalPiece = piece;
+            if (promote) {
+                finalPiece = promotePiece(piece);
+            }
+            
+            // 移動を実行
+            boardState[toRow][toCol] = finalPiece;
+            boardState[fromRow][fromCol] = null;
+            
+            // 駒を取った場合は持ち駒に追加（成りを戻して追加）
+            if (capturedPiece) {
+                const baseType = capturedPiece.replace('+', '');
+                addCapturedPiece(baseType, currentPlayer);
+            }
+            
+            // 履歴に追加
+            const moveNotation = `${9-fromCol}${fromRow+1}-${9-toCol}${toRow+1}`;
+            let notation = moveNotation;
+            if (promote) {
+                notation += '成';
+            }
+            if (capturedPiece) {
+                notation += `(${PIECES[capturedPiece]}取り)`;
+            }
+            moveHistory.push(notation);
+            
+            // 最後の移動をハイライト
+            document.querySelectorAll('.square.last-move').forEach(sq => {
+                sq.classList.remove('last-move');
+            });
+            document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`).classList.add('last-move');
+            document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`).classList.add('last-move');
+            
+            // 手番交代
+            currentPlayer = currentPlayer === 'sente' ? 'gote' : 'sente';
+            
+            // 表示更新
+            clearSelection();
+            updateBoardDisplay();
+            updateCapturedDisplay();
+            updateStatus(`移動完了 - ${currentPlayer === 'sente' ? '先手' : '後手'}の番です`);
+            
+            // 詰み判定
+            if (isCheckmate(currentPlayer)) {
+                const winner = currentPlayer === 'sente' ? '後手' : '先手';
+                updateStatus(`詰みです！${winner}の勝ちです！`);
+                // エンジンモードを無効化
+                if (engineMode) {
+                    const checkbox = document.getElementById('engine-mode');
+                    checkbox.checked = false;
+                    toggleEngineMode();
+                }
+            }
+        }
+        
+        // 持ち駒から打つ
+        function executeCaptureDrop(toRow, toCol) {
+            const pieceType = selectedCapturedPiece.dataset.piece;
+            const player = selectedCapturedPiece.dataset.player;
+            
+            // 盤面に駒を配置
+            const pieceChar = player === 'sente' ? pieceType.toUpperCase() : pieceType.toLowerCase();
+            boardState[toRow][toCol] = pieceChar;
+            
+            // 持ち駒から削除
+            removeCapturedPiece(pieceType, player);
+            
+            // 履歴に追加
+            const moveNotation = `${PIECES[pieceChar]}打${9-toCol}${toRow+1}`;
+            moveHistory.push(moveNotation);
+            
+            // 手番交代
+            currentPlayer = currentPlayer === 'sente' ? 'gote' : 'sente';
+            
+            // 表示更新
+            clearSelection();
+            updateBoardDisplay();
+            updateCapturedDisplay();
+            updateStatus(`${PIECES[pieceChar]}を打ちました - ${currentPlayer === 'sente' ? '先手' : '後手'}の番です`);
+            
+            // 詰み判定
+            if (isCheckmate(currentPlayer)) {
+                const winner = currentPlayer === 'sente' ? '後手' : '先手';
+                updateStatus(`詰みです！${winner}の勝ちです！`);
+                // エンジンモードを無効化
+                if (engineMode) {
+                    const checkbox = document.getElementById('engine-mode');
+                    checkbox.checked = false;
+                    toggleEngineMode();
+                }
+            }
+            
+            // エンジンモードで先手が打った後、後手（エンジン）の番になったら自動で手を指す
+            else if (engineMode && currentPlayer === 'gote') {
+                setTimeout(() => {
+                    makeEngineMove();
+                }, 1000);
+            }
+        }
+        
+        // 持ち駒に追加
+        function addCapturedPiece(piece, player) {
+            const baseType = piece.toLowerCase();
+            if (!capturedPieces[player][baseType]) {
+                capturedPieces[player][baseType] = 0;
+            }
+            capturedPieces[player][baseType]++;
+        }
+        
+        // 持ち駒から削除
+        function removeCapturedPiece(pieceType, player) {
+            if (capturedPieces[player][pieceType] > 0) {
+                capturedPieces[player][pieceType]--;
+                if (capturedPieces[player][pieceType] === 0) {
+                    delete capturedPieces[player][pieceType];
+                }
+            }
+        }
+        
+        // 持ち駒表示の更新
+        function updateCapturedDisplay() {
+            updateCapturedDisplayForPlayer('sente');
+            updateCapturedDisplayForPlayer('gote');
+        }
+        
+        function updateCapturedDisplayForPlayer(player) {
+            const container = document.getElementById(`${player}-captured`);
+            container.innerHTML = '';
+            
+            const pieces = capturedPieces[player];
+            const pieceOrder = ['r', 'b', 'g', 's', 'n', 'l', 'p']; // 飛、角、金、銀、桂、香、歩
+            
+            for (const pieceType of pieceOrder) {
+                if (pieces[pieceType] && pieces[pieceType] > 0) {
+                    const count = pieces[pieceType];
+                    for (let i = 0; i < count; i++) {
+                        const pieceElement = document.createElement('div');
+                        pieceElement.className = `captured-piece ${player}`;
+                        pieceElement.textContent = PIECES[pieceType];
+                        pieceElement.dataset.piece = pieceType;
+                        pieceElement.dataset.player = player;
+                        
+                        // クリックイベント
+                        pieceElement.addEventListener('click', function() {
+                            handleCapturedPieceClick(this);
+                        });
+                        
+                        container.appendChild(pieceElement);
+                    }
+                }
+            }
+            
+            if (container.children.length === 0) {
+                container.innerHTML = '<span style="color: #999;">なし</span>';
+            }
+        }
+        
+        // 持ち駒クリック処理
+        function handleCapturedPieceClick(pieceElement) {
+            const player = pieceElement.dataset.player;
+            
+            // 現在のプレイヤーの持ち駒でない場合は無効
+            if (player !== currentPlayer) {
+                updateStatus('自分の持ち駒を選択してください');
+                return;
+            }
+            
+            // エンジンモードで後手の番の場合は操作を無効化
+            if (engineMode && currentPlayer === 'gote') {
+                updateStatus('エンジンの番です');
+                return;
+            }
+            
+            // 選択解除
+            clearSelection();
+            
+            // 持ち駒を選択
+            selectedCapturedPiece = pieceElement;
+            pieceElement.classList.add('selected');
+            
+            // 空のマスをハイライト
+            highlightEmptySquares();
+            
+            updateStatus(`${PIECES[pieceElement.dataset.piece]}を選択 - 空いているマスをクリックしてください`);
+        }
+        
+        // 空マスのハイライト
+        function highlightEmptySquares() {
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => {
+                const row = parseInt(square.dataset.row);
+                const col = parseInt(square.dataset.col);
+                if (!boardState[row][col]) {
+                    square.classList.add('movable');
+                }
+            });
+        }
+        
+        // 成り選択ダイアログ表示
+        function showPromotionDialog(fromRow, fromCol, toRow, toCol) {
+            const piece = boardState[fromRow][fromCol];
+            const pieceName = PIECES[piece];
+            const promotedName = PIECES[promotePiece(piece)];
+            
+            // オーバーレイ作成
+            const overlay = document.createElement('div');
+            overlay.className = 'promotion-overlay';
+            
+            // ダイアログ作成
+            const dialog = document.createElement('div');
+            dialog.className = 'promotion-dialog';
+            dialog.innerHTML = `
+                <h3>駒を成りますか？</h3>
+                <p>${pieceName} → ${promotedName}</p>
+                <div class="promotion-buttons">
+                    <button class="promotion-button" onclick="executePromotion(${fromRow}, ${fromCol}, ${toRow}, ${toCol}, true)">
+                        成る
+                    </button>
+                    <button class="promotion-button" onclick="executePromotion(${fromRow}, ${fromCol}, ${toRow}, ${toCol}, false)">
+                        成らない
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            document.body.appendChild(dialog);
+        }
+        
+        // 成り実行
+        function executePromotion(fromRow, fromCol, toRow, toCol, promote) {
+            // ダイアログを削除
+            const overlay = document.querySelector('.promotion-overlay');
+            const dialog = document.querySelector('.promotion-dialog');
+            if (overlay) overlay.remove();
+            if (dialog) dialog.remove();
+            
+            // 移動を実行
+            executeMove(fromRow, fromCol, toRow, toCol, promote);
+            
+            // エンジンモードで先手が指した後、後手（エンジン）の番になったら自動で手を指す
+            if (engineMode && currentPlayer === 'gote') {
+                setTimeout(() => {
+                    makeEngineMove();
+                }, 1000);
+            }
+        }
+        
+        // エンジンモード切り替え
+        function toggleEngineMode() {
+            const checkbox = document.getElementById('engine-mode');
+            const statusDiv = document.getElementById('engine-status');
+            const engineBtn = document.getElementById('engine-move-btn');
+            
+            engineMode = checkbox.checked;
+            
+            if (engineMode) {
+                statusDiv.textContent = 'エンジン対戦モード（後手=コンピューター）';
+                statusDiv.style.color = '#B22222';
+                engineBtn.style.display = 'inline-block';
+                
+                // 現在後手の番の場合、エンジンに手を指させる
+                if (currentPlayer === 'gote') {
+                    setTimeout(() => {
+                        makeEngineMove();
+                    }, 500);
+                }
+            } else {
+                statusDiv.textContent = '対人戦モード';
+                statusDiv.style.color = '#666';
+                engineBtn.style.display = 'none';
+                isEngineThinking = false;
+            }
+        }
+        
+        // 詰み判定
+        function isCheckmate(player) {
+            // 王/玉を探す
+            const kingChar = player === 'sente' ? 'K' : 'k';
+            let kingRow = -1, kingCol = -1;
+            
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (boardState[row][col] === kingChar) {
+                        kingRow = row;
+                        kingCol = col;
+                        break;
+                    }
+                }
+                if (kingRow !== -1) break;
+            }
+            
+            if (kingRow === -1) return false; // 王がいない場合
+            
+            // 王が攻撃されているかチェック
+            if (!isSquareUnderAttack(kingRow, kingCol, player === 'sente' ? 'gote' : 'sente')) {
+                return false; // 王手でない場合は詰みではない
+            }
+            
+            // すべての合法手をチェック
+            const possibleMoves = generateAllPossibleMoves(player);
+            
+            // 各手について、その手を指した後も王手が続くかチェック
+            for (const move of possibleMoves) {
+                if (canEscapeCheck(move, player)) {
+                    return false; // 詰みを回避できる手がある
+                }
+            }
+            
+            return true; // すべての手を試しても詰みを回避できない
+        }
+        
+        // 指定された手で王手を回避できるかチェック
+        function canEscapeCheck(move, player) {
+            // 盤面の状態を保存
+            const originalBoard = boardState.map(row => [...row]);
+            const originalCaptured = JSON.parse(JSON.stringify(capturedPieces));
+            
+            try {
+                // 仮に手を実行
+                if (move.type === 'move') {
+                    boardState[move.to.row][move.to.col] = boardState[move.from.row][move.from.col];
+                    boardState[move.from.row][move.from.col] = null;
+                } else if (move.type === 'drop') {
+                    boardState[move.to.row][move.to.col] = move.piece;
+                    // 持ち駒は実際には減らさない（テスト用）
+                }
+                
+                // 王の位置を取得
+                const kingChar = player === 'sente' ? 'K' : 'k';
+                let kingRow = -1, kingCol = -1;
+                for (let row = 0; row < 9; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        if (boardState[row][col] === kingChar) {
+                            kingRow = row;
+                            kingCol = col;
+                            break;
+                        }
+                    }
+                    if (kingRow !== -1) break;
+                }
+                
+                // 王手が回避されているかチェック
+                const isStillInCheck = isSquareUnderAttack(kingRow, kingCol, player === 'sente' ? 'gote' : 'sente');
+                
+                // 元の状態に戻す
+                boardState = originalBoard;
+                capturedPieces = originalCaptured;
+                
+                return !isStillInCheck;
+            } catch (error) {
+                // 元の状態に戻す
+                boardState = originalBoard;
+                capturedPieces = originalCaptured;
+                return false;
+            }
+        }
+        
+        // 指定したマスが攻撃されているかチェック
+        function isSquareUnderAttack(targetRow, targetCol, attackingPlayer) {
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const piece = boardState[row][col];
+                    if (piece && isPieceOwner(piece, attackingPlayer)) {
+                        const originalPlayer = currentPlayer;
+                        currentPlayer = attackingPlayer;
+                        const canAttack = isValidMove(row, col, targetRow, targetCol);
+                        currentPlayer = originalPlayer;
+                        if (canAttack) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // すべての可能な手を生成（駒の移動＋駒打ち）
+        function generateAllPossibleMoves(player) {
+            const moves = [];
+            
+            // 駒の移動
+            for (let fromRow = 0; fromRow < 9; fromRow++) {
+                for (let fromCol = 0; fromCol < 9; fromCol++) {
+                    const piece = boardState[fromRow][fromCol];
+                    if (piece && isPieceOwner(piece, player)) {
+                        for (let toRow = 0; toRow < 9; toRow++) {
+                            for (let toCol = 0; toCol < 9; toCol++) {
+                                const originalPlayer = currentPlayer;
+                                currentPlayer = player;
+                                if (isValidMove(fromRow, fromCol, toRow, toCol)) {
+                                    moves.push({
+                                        type: 'move',
+                                        from: {row: fromRow, col: fromCol},
+                                        to: {row: toRow, col: toCol},
+                                        piece: piece
+                                    });
+                                }
+                                currentPlayer = originalPlayer;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 駒打ち
+            const playerCaptured = capturedPieces[player];
+            for (const pieceType in playerCaptured) {
+                if (playerCaptured[pieceType] > 0) {
+                    const pieceChar = player === 'sente' ? pieceType.toUpperCase() : pieceType.toLowerCase();
+                    for (let row = 0; row < 9; row++) {
+                        for (let col = 0; col < 9; col++) {
+                            if (!boardState[row][col]) { // 空のマス
+                                moves.push({
+                                    type: 'drop',
+                                    to: {row: row, col: col},
+                                    piece: pieceChar,
+                                    pieceType: pieceType
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return moves;
+        }
+        
+        // エンジンの手を実行
+        function makeEngineMove() {
+            if (!engineMode || currentPlayer !== 'gote') {
+                return;
+            }
+            
+            isEngineThinking = true;
+            updateStatus('エンジン思考中...');
+            
+            // 可能な手を生成
+            const possibleMoves = generateAllPossibleMoves('gote');
+            
+            if (possibleMoves.length === 0) {
+                updateStatus('エンジンに指せる手がありません');
+                isEngineThinking = false;
+                return;
+            }
+            
+            // ランダムに手を選択（簡易AI）
+            const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+            
+            // 0.5-2秒の思考時間をシミュレート
+            const thinkingTime = 500 + Math.random() * 1500;
+            
+            setTimeout(() => {
+                if (randomMove.type === 'move') {
+                    executeMove(
+                        randomMove.from.row, 
+                        randomMove.from.col, 
+                        randomMove.to.row, 
+                        randomMove.to.col
+                    );
+                    const moveNotation = `${9-randomMove.from.col}${randomMove.from.row+1}-${9-randomMove.to.col}${randomMove.to.row+1}`;
+                } else if (randomMove.type === 'drop') {
+                    // 駒打ちをシミュレート
+                    boardState[randomMove.to.row][randomMove.to.col] = randomMove.piece;
+                    removeCapturedPiece(randomMove.pieceType, 'gote');
+                    
+                    const moveNotation = `${PIECES[randomMove.piece]}打${9-randomMove.to.col}${randomMove.to.row+1}`;
+                    moveHistory.push(moveNotation);
+                    
+                    currentPlayer = 'sente';
+                    updateBoardDisplay();
+                    updateCapturedDisplay();
+                    
+                    // 詰み判定
+                    if (isCheckmate(currentPlayer)) {
+                        const winner = currentPlayer === 'sente' ? '後手' : '先手';
+                        updateStatus(`詰みです！${winner}の勝ちです！`);
+                        const checkbox = document.getElementById('engine-mode');
+                        checkbox.checked = false;
+                        toggleEngineMode();
+                    } else {
+                        updateStatus(`エンジンが${PIECES[randomMove.piece]}を打ちました - 先手の番です`);
+                    }
+                }
+                
+                isEngineThinking = false;
+            }, thinkingTime);
+        }
+        
+        // ステータス更新
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // 初期化実行
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeBoard();
+        });
+    </script>
+</body>
+</html>
